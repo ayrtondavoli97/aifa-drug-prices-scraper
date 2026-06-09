@@ -22,8 +22,18 @@
             "type": "string",
             "description": "Optional. Filter by AIFA reimbursement class. 'A' = fully reimbursed by NHS, 'H' = hospital only, 'C' = not reimbursed (patient pays full price). Leave empty for all classes.",
             "editor": "select",
-            "enum": ["", "A", "H", "C"],
-            "enumTitles": ["All classes", "Class A (NHS reimbursed)", "Class H (hospital only)", "Class C (patient pays)"],
+            "enum": [
+                "",
+                "A",
+                "H",
+                "C"
+            ],
+            "enumTitles": [
+                "All classes",
+                "Class A (NHS reimbursed)",
+                "Class H (hospital only)",
+                "Class C (patient pays)"
+            ],
             "default": ""
         },
         "onlyWithPriceGap": {
@@ -39,12 +49,6 @@
             "default": 0,
             "minimum": 0,
             "maximum": 100000
-        },
-        "includeHistoric": {
-            "title": "Include previous month's data",
-            "type": "boolean",
-            "description": "When enabled, also downloads the previous month's list and adds a 'previousPriceEur' and 'priceChange' field showing month-over-month price changes.",
-            "default": false
         }
     }
 }
