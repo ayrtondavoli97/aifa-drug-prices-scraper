@@ -1,0 +1,14 @@
+{
+    "name": "aifa-drug-prices-scraper",
+    "version": "1.0.0",
+    "type": "module",
+    "main": "src/main.js",
+    "dependencies": {
+        "apify": "^3.2.0",
+        "crawlee": "^3.16.0",
+        "xlsx": "^0.18.5"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}

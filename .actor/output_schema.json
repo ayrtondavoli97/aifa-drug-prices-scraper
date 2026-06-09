@@ -1,0 +1,24 @@
+{
+    "actorSpecification": 1,
+    "fields": {
+        "principioAttivo":        { "type": "string",  "description": "Active substance name (INN/generic name)" },
+        "denominazione":          { "type": "string",  "description": "Brand/commercial name of the medicine" },
+        "ditta":                  { "type": "string",  "description": "Manufacturer / marketing authorisation holder" },
+        "confezione":             { "type": "string",  "description": "Packaging description (e.g. '30 cpr 500mg')" },
+        "aic":                    { "type": "string",  "description": "AIC code — Italian marketing authorisation number" },
+        "atc":                    { "type": "string",  "description": "ATC code (Anatomical Therapeutic Chemical classification)" },
+        "classe":                 { "type": "string",  "description": "NHS reimbursement class: A (reimbursed), H (hospital), C (not reimbursed)" },
+        "ricetta":                { "type": "string",  "description": "Prescription type (e.g. RR = restricted prescription, SOP = OTC)" },
+        "prezzoAlPubblico":       { "type": "string",  "description": "Retail price as shown in AIFA list (formatted string)" },
+        "prezzoAlPubblicoEur":    { "type": "number",  "description": "Retail price as numeric EUR value" },
+        "prezzoDiRiferimento":    { "type": "string",  "description": "NHS reference price as shown in AIFA list (maximum reimbursed amount)" },
+        "prezzoDiRiferimentoEur": { "type": "number",  "description": "NHS reference price as numeric EUR value" },
+        "differenzaEur":          { "type": "number",  "description": "Price gap: retail minus reference (amount patient must pay extra)" },
+        "differenzaPercent":      { "type": "number",  "description": "Price gap as percentage of reference price" },
+        "nota":                   { "type": "string",  "description": "AIFA prescription/dispensing note (Nota 1, Nota 4, etc.)" },
+        "previousPriceEur":       { "type": "number",  "description": "Previous month's retail price (only when includeHistoric=true)" },
+        "priceChange":            { "type": "number",  "description": "Month-over-month price change in EUR (only when includeHistoric=true)" },
+        "dataAggiornamento":      { "type": "string",  "description": "Date of this AIFA list update (ISO format)" },
+        "fonte":                  { "type": "string",  "description": "Direct URL of the AIFA CSV source file" }
+    }
+}

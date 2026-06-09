@@ -1,0 +1,69 @@
+{
+    "actorSpecification": 1,
+    "name": "aifa-drug-prices-scraper",
+    "title": "AIFA Italy Drug Prices — Generic & Equivalent Medicines Database",
+    "description": "Extract the official Italian drug price database from AIFA (Agenzia Italiana del Farmaco). Returns all generic/equivalent medicines with NHS reference prices, ATC codes, manufacturer, packaging, and prescription class. Data is updated monthly. License: CC-BY.",
+    "version": "1.0",
+    "buildTag": "latest",
+    "dockerfile": "../Dockerfile",
+    "input": "./input_schema.json",
+    "output": "./output_schema.json",
+    "defaultRunOptions": {
+        "timeoutSecs": 120,
+        "memoryMbytes": 512
+    },
+    "storages": {
+        "dataset": {
+            "actorSpecification": 1,
+            "title": "AIFA Drug Prices Dataset",
+            "views": {
+                "overview": {
+                    "title": "Medicines",
+                    "transformation": {
+                        "fields": [
+                            "principioAttivo",
+                            "denominazione",
+                            "ditta",
+                            "confezione",
+                            "aic",
+                            "atc",
+                            "classe",
+                            "ricetta",
+                            "prezzoAlPubblico",
+                            "prezzoAlPubblicoEur",
+                            "prezzoDiRiferimento",
+                            "prezzoDiRiferimentoEur",
+                            "differenzaEur",
+                            "differenzaPercent",
+                            "nota",
+                            "dataAggiornamento",
+                            "fonte"
+                        ]
+                    },
+                    "display": {
+                        "component": "table",
+                        "properties": {
+                            "principioAttivo":          { "label": "Active substance",       "format": "text" },
+                            "denominazione":            { "label": "Brand name",             "format": "text" },
+                            "ditta":                    { "label": "Manufacturer",           "format": "text" },
+                            "confezione":               { "label": "Packaging",              "format": "text" },
+                            "aic":                      { "label": "AIC code",               "format": "text" },
+                            "atc":                      { "label": "ATC code",               "format": "text" },
+                            "classe":                   { "label": "NHS class",              "format": "text" },
+                            "ricetta":                  { "label": "Prescription type",      "format": "text" },
+                            "prezzoAlPubblico":         { "label": "Retail price",           "format": "text" },
+                            "prezzoAlPubblicoEur":      { "label": "Retail price (€)",       "format": "number" },
+                            "prezzoDiRiferimento":      { "label": "NHS reference price",    "format": "text" },
+                            "prezzoDiRiferimentoEur":   { "label": "NHS reference price (€)","format": "number" },
+                            "differenzaEur":            { "label": "Price gap (€)",          "format": "number" },
+                            "differenzaPercent":        { "label": "Price gap (%)",          "format": "number" },
+                            "nota":                     { "label": "AIFA note",              "format": "text" },
+                            "dataAggiornamento":        { "label": "Data updated",           "format": "text" },
+                            "fonte":                    { "label": "Source",                 "format": "link" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

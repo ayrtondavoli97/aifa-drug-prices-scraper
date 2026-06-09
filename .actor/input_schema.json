@@ -1,0 +1,50 @@
+{
+    "title": "AIFA Italy Drug Prices Scraper",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "searchQuery": {
+            "title": "Search by active substance or brand name",
+            "type": "string",
+            "description": "Optional. Filter results by active substance (principio attivo) or brand name (denominazione). Case-insensitive, partial match. Examples: 'paracetamolo', 'ibuprofene', 'metformina', 'tachipirina'. Leave empty to get the full database.",
+            "editor": "textfield",
+            "default": ""
+        },
+        "atcCode": {
+            "title": "Filter by ATC code",
+            "type": "string",
+            "description": "Optional. Filter by ATC code prefix. Examples: 'N02' (analgesics), 'A10' (diabetes), 'C10' (cholesterol), 'J01' (antibiotics). Leave empty for all.",
+            "editor": "textfield",
+            "default": ""
+        },
+        "classeSSN": {
+            "title": "Filter by NHS reimbursement class",
+            "type": "string",
+            "description": "Optional. Filter by AIFA reimbursement class. 'A' = fully reimbursed by NHS, 'H' = hospital only, 'C' = not reimbursed (patient pays full price). Leave empty for all classes.",
+            "editor": "select",
+            "enum": ["", "A", "H", "C"],
+            "enumTitles": ["All classes", "Class A (NHS reimbursed)", "Class H (hospital only)", "Class C (patient pays)"],
+            "default": ""
+        },
+        "onlyWithPriceGap": {
+            "title": "Only medicines with price gap",
+            "type": "boolean",
+            "description": "When enabled, only returns medicines where the retail price is higher than the NHS reference price — i.e. the patient must pay the difference. Useful for identifying savings opportunities.",
+            "default": false
+        },
+        "maxItems": {
+            "title": "Maximum results",
+            "type": "integer",
+            "description": "Maximum number of medicines to return. Set to 0 for the full database (typically 10,000–15,000 records).",
+            "default": 0,
+            "minimum": 0,
+            "maximum": 100000
+        },
+        "includeHistoric": {
+            "title": "Include previous month's data",
+            "type": "boolean",
+            "description": "When enabled, also downloads the previous month's list and adds a 'previousPriceEur' and 'priceChange' field showing month-over-month price changes.",
+            "default": false
+        }
+    }
+}
