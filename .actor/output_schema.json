@@ -1,5 +1,6 @@
 {
     "actorSpecification": 1,
+    "actorOutputSchemaVersion": 1,
     "fields": {
         "principioAttivo":        { "type": "string",  "description": "Active substance name (INN/generic name)" },
         "denominazione":          { "type": "string",  "description": "Brand/commercial name of the medicine" },
