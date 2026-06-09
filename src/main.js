@@ -1,20 +1,17 @@
 /**
- * AIFA Italy Drug Prices Scraper v1.1.0
+ * AIFA Italy Drug Prices Scraper v1.2.0
  *
  * Downloads the official monthly AIFA Transparency List (Lista di Trasparenza)
  * published by the Italian Medicines Agency (Agenzia Italiana del Farmaco).
  *
  * Source: https://www.aifa.gov.it/liste-di-trasparenza
- * License: CC-BY (open data, free to reuse)
- * Update frequency: monthly (typically 15th of each month)
+ * License: CC-BY (open data, free to reuse commercially)
+ * Update frequency: monthly (~15th of each month)
  *
- * The CSV (labelled "Elenco in formato .csv del DD/MM/YYYY") contains:
- * - Principio Attivo, Denominazione, Ditta, AIC, ATC, Confezione
- * - Classe SSN (A/H/C), Ricetta, Nota
- * - Prezzo al Pubblico (retail), Prezzo di Riferimento (NHS max reimbursed)
- *
- * IMPORTANT: this is different from "Lista_farmaci_equivalenti.csv" which is
- * a bare list without prices. We specifically target the labelled link.
+ * Confirmed CSV columns (from live file):
+ *   Principio attivo | Confezione di riferimento | ATC | AIC | Farmaco |
+ *   Confezione | Ditta | Prezzo riferimento SSN | Prezzo Pubblico DD mese YYYY |
+ *   Differenza | Nota | Codice gruppo equivalenza
  */
 
 import { Actor, log } from 'apify';
@@ -26,8 +23,13 @@ const AIFA_LIST_PAGE = `${AIFA_BASE}/liste-di-trasparenza`;
 // ─── URL discovery ────────────────────────────────────────────────────────────
 
 /**
- * Fetch the AIFA transparency list page and extract the URL of the CSV
- * labelled "Elenco in formato .csv del DD/MM/YYYY" (with prices).
+ * Fetch the AIFA transparency list page and extract the URL of the correct CSV.
+ *
+ * The target link is labelled "Elenco in formato .csv del DD/MM/YYYY".
+ * Strategy: find that label text in HTML, then extract the href from
+ * the nearest preceding <a> tag (AIFA renders: <a href="...csv">label</a>).
+ *
+ * Fallback: construct URL from current month using known AIFA path pattern.
  */
 async function fetchLatestCsvUrl(headers) {
     log.info('Fetching AIFA transparency list page...');
@@ -37,36 +39,41 @@ async function fetchLatestCsvUrl(headers) {
         timeout: { request: 30000 },
         throwHttpErrors: false,
     });
-    if (res.statusCode !== 200) throw new Error(`AIFA list page HTTP ${res.statusCode}`);
+    if (res.statusCode !== 200) throw new Error(`AIFA page HTTP ${res.statusCode}`);
 
     const html = res.body;
 
-    // Strategy 1: anchor whose TEXT contains "Elenco in formato .csv"
-    // Pattern: href="...csv...">...Elenco...formato...csv...
-    const labelled = html.match(
-        /href="([^"]+\.csv(?:[^"]*)?)"[^>]*>[^<]*Elenco[^<]*formato[^<]*\.csv/i
-    ) || html.match(
-        /href="([^"]+\.csv(?:[^"]*)?)"[^>]*>[^<]*formato\s+\.csv/i
-    );
-    if (labelled) {
-        const url = labelled[1].startsWith('http') ? labelled[1] : AIFA_BASE + labelled[1];
-        log.info(`Found labelled CSV URL: ${url}`);
-        return url;
-    }
+    // Find all CSV hrefs on the page
+    const allCsvHrefs = [...html.matchAll(/href="([^"]*\.csv[^"]*)"/gi)].map(m => m[1]);
+    log.info(`CSV hrefs found on page: ${allCsvHrefs.length} — ${JSON.stringify(allCsvHrefs.slice(0,5))}`);
 
-    // Strategy 2: find text label first, search nearby for href
-    const idx = html.search(/Elenco\s+in\s+formato\s+\.csv\s+del\s+\d{2}\/\d{2}\/\d{4}/i);
-    if (idx > -1) {
-        const slice = html.slice(Math.max(0, idx - 600), idx + 300);
-        const m = slice.match(/href="([^"]+\.csv[^"]*)"/i);
-        if (m) {
-            const url = m[1].startsWith('http') ? m[1] : AIFA_BASE + m[1];
-            log.info(`Found CSV URL via proximity search: ${url}`);
+    // The transparency list CSV has a label "Elenco in formato .csv del DD/MM/YYYY"
+    // Find that label and extract the href from a window around it
+    const labelIdx = html.search(/Elenco\s+in\s+formato\s+\.csv\s+del\s+\d{2}\/\d{2}\/\d{4}/i);
+    if (labelIdx > -1) {
+        // Search up to 600 chars before the label for an href
+        const window = html.slice(Math.max(0, labelIdx - 600), labelIdx + 50);
+        // Get the LAST href in this window (closest preceding anchor)
+        const hrefs = [...window.matchAll(/href="([^"]+\.csv[^"]*)"/gi)].map(m => m[1]);
+        if (hrefs.length > 0) {
+            const href = hrefs[hrefs.length - 1];
+            const url = href.startsWith('http') ? href : AIFA_BASE + href;
+            log.info(`Found labelled CSV URL: ${url}`);
             return url;
         }
     }
 
-    // Strategy 3: construct from date in label
+    // Fallback: look for CSV href that contains "Trasparenza" or date pattern
+    const trasparenzaHref = allCsvHrefs.find(h =>
+        /trasparenza/i.test(h) || /lista_di/i.test(h) || /\d{8}\.csv/i.test(h)
+    );
+    if (trasparenzaHref) {
+        const url = trasparenzaHref.startsWith('http') ? trasparenzaHref : AIFA_BASE + trasparenzaHref;
+        log.warning(`Using fallback CSV href: ${url}`);
+        return url;
+    }
+
+    // Last resort: construct from date in label
     const dm = html.match(/formato\s+\.csv\s+del\s+(\d{2})\/(\d{2})\/(\d{4})/i);
     if (dm) {
         const url = `${AIFA_BASE}/documents/20142/0/Lista_di_Trasparenza_${dm[1]}${dm[2]}${dm[3]}.csv`;
@@ -77,25 +84,15 @@ async function fetchLatestCsvUrl(headers) {
     throw new Error('Could not locate Lista di Trasparenza CSV on AIFA page.');
 }
 
-/** Previous month URL for historic comparison */
-function previousMonthUrl(url) {
-    const m = url.match(/(\d{2})(\d{2})(\d{4})\.csv/i);
-    if (!m) return null;
-    const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
-    d.setMonth(d.getMonth() - 1);
-    const pd = String(d.getDate()).padStart(2,'0');
-    const pm = String(d.getMonth()+1).padStart(2,'0');
-    return url.replace(/\d{8}\.csv/i, `${pd}${pm}${d.getFullYear()}.csv`);
-}
-
 // ─── CSV parser ───────────────────────────────────────────────────────────────
 
 /**
- * Parse AIFA CSV.
- * - Delimiter: semicolon (;)
- * - Encoding: UTF-8 or Latin-1 (handled at download)
- * - Quirk: some cells are double-quoted AND the content itself has extra quotes
- *   e.g.  ""10 MG COMPRESSE"" -> should be  10 MG COMPRESSE
+ * Parse AIFA CSV (semicolon-delimited).
+ *
+ * AIFA quirk: the Confezione field uses "" around content AND is quoted by CSV,
+ * resulting in  "\"\"10 MG COMPRESSE\"\"" in raw text.
+ * After outer quote stripping we get:  ""10 MG COMPRESSE""
+ * We then strip residual "" to get:    10 MG COMPRESSE
  */
 function parseCsv(rawText) {
     const text = rawText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -103,76 +100,130 @@ function parseCsv(rawText) {
     if (lines.length < 2) return [];
 
     const delim = lines[0].includes(';') ? ';' : ',';
-    const headers = lines[0].split(delim).map(h => h.trim().replace(/^"|"$/g, '').trim());
+    const headers = lines[0].split(delim).map(h =>
+        h.trim().replace(/^"+|"+$/g, '').trim()
+    );
 
     const rows = [];
     for (let i = 1; i < lines.length; i++) {
-        const cells = lines[i].split(delim);
+        const cells = splitCsvLine(lines[i], delim);
         if (cells.every(c => !c.trim())) continue;
         const row = {};
         headers.forEach((h, idx) => {
-            let val = (cells[idx] || '').trim();
-            // Strip outer quotes (single or double)
-            val = val.replace(/^"|"$/g, '').trim();
-            // Strip residual inner double-quotes that AIFA uses for emphasis: ""text"" -> text
-            val = val.replace(/^"+|"+$/g, '').trim();
-            row[h] = val;
+            row[h] = cleanCell(cells[idx] || '');
         });
         rows.push(row);
     }
     return rows;
 }
 
-/** Parse Italian price "3,50" / "€ 3,50" / "3.50" -> number */
+/** Split a CSV line respecting quoted fields */
+function splitCsvLine(line, delim) {
+    const cells = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+            inQuotes = !inQuotes;
+        } else if (ch === delim && !inQuotes) {
+            cells.push(current);
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+    cells.push(current);
+    return cells;
+}
+
+/** Strip outer/inner quotes and whitespace from a CSV cell value */
+function cleanCell(val) {
+    let s = val.trim();
+    // Strip outer double-quotes
+    s = s.replace(/^"+|"+$/g, '').trim();
+    // Strip residual inner double-double-quotes (AIFA quirk: ""text"")
+    s = s.replace(/^"+|"+$/g, '').trim();
+    return s;
+}
+
+/** Parse Italian price "5,63 " / "€ 3,50" → number */
 function parsePrice(raw) {
-    if (!raw || raw.trim() === '' || raw.trim() === '-') return null;
-    const n = parseFloat(raw.replace(/[€\s]/g, '').replace(/\./g, '').replace(',', '.'));
+    if (!raw || raw.trim() === '' || raw.trim() === '-' || raw.trim() === '0,00') return null;
+    const n = parseFloat(
+        raw.replace(/[€\s]/g, '').replace(/\./g, '').replace(',', '.')
+    );
     return isNaN(n) ? null : Math.round(n * 100) / 100;
 }
 
-/** Normalise a raw AIFA row to output schema */
+/**
+ * Normalise a raw AIFA row to the output schema.
+ *
+ * Confirmed column names from live CSV:
+ *   "Principio attivo", "Confezione di riferimento", "ATC", "AIC",
+ *   "Farmaco", "Confezione", "Ditta",
+ *   "Prezzo riferimento SSN", "Prezzo Pubblico DD mese YYYY",
+ *   "Differenza", "Nota", "Codice gruppo equivalenza"
+ */
 function normalise(raw, dataDate, sourceUrl) {
-    // Helper: try multiple possible column names
+    // Get value by exact key, case-insensitive
     const get = (...keys) => {
         for (const k of keys) {
             for (const rk of Object.keys(raw)) {
                 if (rk.trim().toLowerCase() === k.toLowerCase()) {
-                    const v = raw[rk];
-                    if (v !== undefined && v !== '') return v.trim();
+                    const v = (raw[rk] || '').trim();
+                    if (v !== '') return v;
+                }
+            }
+            // Partial match fallback for "Prezzo Pubblico DD mese YYYY" (date varies)
+            for (const rk of Object.keys(raw)) {
+                if (rk.trim().toLowerCase().startsWith(k.toLowerCase())) {
+                    const v = (raw[rk] || '').trim();
+                    if (v !== '') return v;
                 }
             }
         }
         return null;
     };
 
-    const prezzoRaw = get('Prezzo al Pubblico', 'Prezzo Pubblico', 'PREZZO AL PUBBLICO');
-    const riferRaw  = get('Prezzo di Riferimento', 'Prezzo Riferimento', 'PREZZO DI RIFERIMENTO', 'Prezzo Rif.');
+    const prezzoRaw = get('Prezzo Pubblico');   // partial match: "Prezzo Pubblico 15 maggio 2026"
+    const riferRaw  = get('Prezzo riferimento SSN');
+    const diffRaw   = get('Differenza');
+
     const prezzoEur = parsePrice(prezzoRaw);
     const riferEur  = parsePrice(riferRaw);
+    const diffEur   = parsePrice(diffRaw);
 
-    const differenzaEur     = (prezzoEur !== null && riferEur !== null)
-        ? Math.round((prezzoEur - riferEur) * 100) / 100 : null;
-    const differenzaPercent = (differenzaEur !== null && riferEur > 0)
-        ? Math.round((differenzaEur / riferEur) * 10000) / 100 : null;
+    // Compute differenza independently (diffRaw may be "0,00" = same price)
+    const differenzaEur = (diffEur !== null) ? diffEur
+        : (prezzoEur !== null && riferEur !== null)
+            ? Math.round((prezzoEur - riferEur) * 100) / 100
+            : null;
+
+    const differenzaPercent = (differenzaEur !== null && riferEur !== null && riferEur > 0)
+        ? Math.round((differenzaEur / riferEur) * 10000) / 100
+        : null;
 
     return {
-        principioAttivo:        get('Principio Attivo', 'PRINCIPIO ATTIVO', 'Principio attivo') || null,
-        denominazione:          get('Denominazione', 'DENOMINAZIONE', 'Nome Commerciale') || null,
-        ditta:                  get('Ditta', 'DITTA', 'Titolare AIC', 'Azienda') || null,
-        confezione:             get('Confezione', 'CONFEZIONE') || null,
-        aic:                    get('AIC', 'Codice AIC', 'Cod. AIC') || null,
-        atc:                    get('ATC', 'Codice ATC', 'Cod. ATC') || null,
-        classe:                 get('Classe', 'CLASSE', 'Classe SSN', 'Fascia') || null,
-        ricetta:                get('Ricetta', 'RICETTA', 'Tipo Ricetta', 'Modalità') || null,
-        prezzoAlPubblico:       prezzoRaw || null,
-        prezzoAlPubblicoEur:    prezzoEur,
-        prezzoDiRiferimento:    riferRaw || null,
-        prezzoDiRiferimentoEur: riferEur,
+        principioAttivo:            get('Principio attivo', 'PRINCIPIO ATTIVO') || null,
+        denominazione:              get('Farmaco', 'Denominazione', 'DENOMINAZIONE', 'Nome Commerciale') || null,
+        ditta:                      get('Ditta', 'DITTA') || null,
+        confezione:                 get('Confezione', 'CONFEZIONE') || null,
+        confezioneDiRiferimento:    get('Confezione di riferimento') || null,
+        codiceGruppoEquivalenza:    get('Codice gruppo equivalenza') || null,
+        aic:                        get('AIC', 'Codice AIC') || null,
+        atc:                        get('ATC', 'Codice ATC') || null,
+        classe:                     get('Classe', 'CLASSE', 'Fascia') || null,
+        ricetta:                    get('Ricetta', 'RICETTA') || null,
+        prezzoAlPubblico:           prezzoRaw || null,
+        prezzoAlPubblicoEur:        prezzoEur,
+        prezzoDiRiferimento:        riferRaw || null,
+        prezzoDiRiferimentoEur:     riferEur,
         differenzaEur,
         differenzaPercent,
-        nota:                   get('Nota', 'NOTA', 'Note', 'Nota AIFA') || null,
-        dataAggiornamento:      dataDate,
-        fonte:                  sourceUrl,
+        nota:                       get('Nota', 'NOTA') || null,
+        dataAggiornamento:          dataDate,
+        fonte:                      sourceUrl,
     };
 }
 
@@ -186,9 +237,8 @@ async function downloadCsv(url, headers) {
         timeout: { request: 60000 },
         throwHttpErrors: false,
     });
-    if (res.statusCode !== 200) throw new Error(`CSV download HTTP ${res.statusCode} — ${url}`);
+    if (res.statusCode !== 200) throw new Error(`CSV HTTP ${res.statusCode} — ${url}`);
 
-    // Decode: try UTF-8 first, fall back to Latin-1 if replacement chars appear
     if (Buffer && Buffer.from) {
         const buf = Buffer.from(res.rawBody || res.body, 'binary');
         const utf8 = buf.toString('utf8');
@@ -203,12 +253,14 @@ function extractDateFromUrl(url) {
     return m ? `${m[3]}-${m[2]}-${m[1]}` : new Date().toISOString().split('T')[0];
 }
 
-// ─── debug: log column names of first row ─────────────────────────────────────
-function logColumns(rows) {
-    if (rows.length > 0) {
-        log.info(`CSV columns detected: ${Object.keys(rows[0]).join(' | ')}`);
-        log.info(`Sample row: ${JSON.stringify(rows[0])}`);
-    }
+function previousMonthUrl(url) {
+    const m = url.match(/(\d{2})(\d{2})(\d{4})\.csv/i);
+    if (!m) return null;
+    const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    d.setMonth(d.getMonth() - 1);
+    const pd = String(d.getDate()).padStart(2,'0');
+    const pm = String(d.getMonth()+1).padStart(2,'0');
+    return url.replace(/\d{8}\.csv/i, `${pd}${pm}${d.getFullYear()}.csv`);
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────
@@ -238,16 +290,16 @@ try {
 } catch (err) {
     const now = new Date();
     csvUrl = `${AIFA_BASE}/documents/20142/0/Lista_di_Trasparenza_15${String(now.getMonth()+1).padStart(2,'0')}${now.getFullYear()}.csv`;
-    log.warning(`Page scrape failed (${err.message}), fallback URL: ${csvUrl}`);
+    log.warning(`Page scrape failed (${err.message}), fallback: ${csvUrl}`);
 }
 
 const dataDate = extractDateFromUrl(csvUrl);
 
 // 2 — Download & parse
-const csvText  = await downloadCsv(csvUrl, headers);
-const rawRows  = parseCsv(csvText);
-log.info(`Parsed ${rawRows.length} rows from AIFA list dated ${dataDate}`);
-logColumns(rawRows);
+const csvText = await downloadCsv(csvUrl, headers);
+const rawRows = parseCsv(csvText);
+log.info(`Parsed ${rawRows.length} rows — columns: ${Object.keys(rawRows[0] || {}).join(' | ')}`);
+log.info(`Sample: ${JSON.stringify(rawRows[0] || {})}`);
 
 // 3 — Historic (optional)
 const prevPriceMap = new Map();
@@ -255,13 +307,14 @@ if (includeHistoric) {
     const prevUrl = previousMonthUrl(csvUrl);
     if (prevUrl) {
         try {
-            const prevText = await downloadCsv(prevUrl, headers);
-            for (const r of parseCsv(prevText)) {
-                const aic = (r['AIC'] || r['Codice AIC'] || '').trim();
-                const p   = parsePrice(r['Prezzo al Pubblico'] || r['PREZZO AL PUBBLICO'] || '');
+            const prevRows = parseCsv(await downloadCsv(prevUrl, headers));
+            for (const r of prevRows) {
+                const aic = cleanCell(r['AIC'] || r['Codice AIC'] || '');
+                const p   = parsePrice(Object.keys(r).find(k => k.startsWith('Prezzo Pubblico'))
+                    ? r[Object.keys(r).find(k => k.startsWith('Prezzo Pubblico'))] : '');
                 if (aic && p !== null) prevPriceMap.set(aic, p);
             }
-            log.info(`Loaded ${prevPriceMap.size} previous-month prices`);
+            log.info(`Previous month: ${prevPriceMap.size} prices loaded`);
         } catch (e) {
             log.warning(`Previous month unavailable: ${e.message}`);
         }
@@ -277,6 +330,7 @@ let saved = 0;
 
 for (const raw of rawRows) {
     if (saved >= limit) break;
+
     const rec = normalise(raw, dataDate, csvUrl);
 
     if (searchLower) {

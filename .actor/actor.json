@@ -3,7 +3,7 @@
     "name": "aifa-drug-prices-scraper",
     "title": "AIFA Italy Drug Prices — Generic & Equivalent Medicines Database",
     "description": "Extract the official Italian drug price database from AIFA (Agenzia Italiana del Farmaco). Returns all generic/equivalent medicines with NHS reference prices, ATC codes, manufacturer, packaging, and prescription class. Data is updated monthly. License: CC-BY.",
-    "version": "1.0",
+    "version": "1.2",
     "buildTag": "latest",
     "dockerfile": "../Dockerfile",
     "input": "./input_schema.json",
@@ -25,6 +25,8 @@
                             "denominazione",
                             "ditta",
                             "confezione",
+                            "confezioneDiRiferimento",
+                            "codiceGruppoEquivalenza",
                             "aic",
                             "atc",
                             "classe",
@@ -43,23 +45,82 @@
                     "display": {
                         "component": "table",
                         "properties": {
-                            "principioAttivo":          { "label": "Active substance",       "format": "text" },
-                            "denominazione":            { "label": "Brand name",             "format": "text" },
-                            "ditta":                    { "label": "Manufacturer",           "format": "text" },
-                            "confezione":               { "label": "Packaging",              "format": "text" },
-                            "aic":                      { "label": "AIC code",               "format": "text" },
-                            "atc":                      { "label": "ATC code",               "format": "text" },
-                            "classe":                   { "label": "NHS class",              "format": "text" },
-                            "ricetta":                  { "label": "Prescription type",      "format": "text" },
-                            "prezzoAlPubblico":         { "label": "Retail price",           "format": "text" },
-                            "prezzoAlPubblicoEur":      { "label": "Retail price (€)",       "format": "number" },
-                            "prezzoDiRiferimento":      { "label": "NHS reference price",    "format": "text" },
-                            "prezzoDiRiferimentoEur":   { "label": "NHS reference price (€)","format": "number" },
-                            "differenzaEur":            { "label": "Price gap (€)",          "format": "number" },
-                            "differenzaPercent":        { "label": "Price gap (%)",          "format": "number" },
-                            "nota":                     { "label": "AIFA note",              "format": "text" },
-                            "dataAggiornamento":        { "label": "Data updated",           "format": "text" },
-                            "fonte":                    { "label": "Source",                 "format": "link" }
+                            "principioAttivo": {
+                                "label": "Active substance",
+                                "format": "text"
+                            },
+                            "denominazione": {
+                                "label": "Brand name",
+                                "format": "text"
+                            },
+                            "ditta": {
+                                "label": "Manufacturer",
+                                "format": "text"
+                            },
+                            "confezione": {
+                                "label": "Packaging",
+                                "format": "text"
+                            },
+                            "aic": {
+                                "label": "AIC code",
+                                "format": "text"
+                            },
+                            "atc": {
+                                "label": "ATC code",
+                                "format": "text"
+                            },
+                            "classe": {
+                                "label": "NHS class",
+                                "format": "text"
+                            },
+                            "ricetta": {
+                                "label": "Prescription type",
+                                "format": "text"
+                            },
+                            "prezzoAlPubblico": {
+                                "label": "Retail price",
+                                "format": "text"
+                            },
+                            "prezzoAlPubblicoEur": {
+                                "label": "Retail price (€)",
+                                "format": "number"
+                            },
+                            "prezzoDiRiferimento": {
+                                "label": "NHS reference price",
+                                "format": "text"
+                            },
+                            "prezzoDiRiferimentoEur": {
+                                "label": "NHS reference price (€)",
+                                "format": "number"
+                            },
+                            "differenzaEur": {
+                                "label": "Price gap (€)",
+                                "format": "number"
+                            },
+                            "differenzaPercent": {
+                                "label": "Price gap (%)",
+                                "format": "number"
+                            },
+                            "nota": {
+                                "label": "AIFA note",
+                                "format": "text"
+                            },
+                            "dataAggiornamento": {
+                                "label": "Data updated",
+                                "format": "text"
+                            },
+                            "fonte": {
+                                "label": "Source",
+                                "format": "link"
+                            },
+                            "confezioneDiRiferimento": {
+                                "label": "Reference packaging",
+                                "format": "text"
+                            },
+                            "codiceGruppoEquivalenza": {
+                                "label": "Equivalence group code",
+                                "format": "text"
+                            }
                         }
                     }
                 }
